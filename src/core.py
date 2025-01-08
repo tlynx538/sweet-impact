@@ -2,6 +2,7 @@ import sqlite3
 import logging 
 from urllib import request
 from hashlib import sha256
+import datetime 
 import json
 import os 
 
@@ -74,6 +75,7 @@ class Initialize:
             logger.error("Failed to Create Update History Table: \n",e)
 
 class Retrieve:
+
     '''
         This class is used in retrieving latest CIK codes along with ticker data from SEC site.
         The list is actively maintained by comparing sha-value of last recorded data present to the latest.
@@ -81,6 +83,7 @@ class Retrieve:
         ## step 2: if data already exists compare SHA hashes to keep updated
         ##         if changes need to be incorporated mark changes and update rows
     '''
+
     company_tickers_url = "https://www.sec.gov/files/company_tickers.json"
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -89,7 +92,7 @@ class Retrieve:
                 'Accept-Language': 'en-US,en;q=0.8',
                 'Connection': 'keep-alive'}
     
-    def __init__(self,connection_object): 
+    def __init__(self,db): 
         # sync data from SEC site and compare existing hash
         # case 1: assume if database is fresh and there is no hashes present
         # case 2: if hashes are present compare the new hash and last inserted hash in the database
@@ -100,19 +103,27 @@ class Retrieve:
             company_ticker_data = request.urlopen(request.Request(Retrieve.company_tickers_url,headers=Retrieve.headers)).read()
             hash_ = sha256(str(company_ticker_data).encode('utf-8')).hexdigest()
             logger.info("Generated Hash for New Data:  ",hash_)
+
             try:
                 company_ticker_data = json.loads(company_ticker_data)
             except Exception as e:
                 logger.error("Failed to Convert to Dictionary", e)
         except Exception as e: 
             logger.error("Connection Error: ",e)
+    
+    def flushToDB(self,db,hash,data):
+        # step 1: add the new hash
+        pass
+
 
 class Core:
+
     """
         This class is the main utility class to interact with sqlite database. 
         The only difference between initialize class and this class is 
         it has CRUD operations to interact with database. 
     """
+
     def __init__(self):
         self.cursor = Initialize()
         # adds new data to databases using this class
