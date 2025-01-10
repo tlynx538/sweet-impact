@@ -1,4 +1,4 @@
-from src.core import Retrieve
+from src.core import Core
 
-data = Retrieve()
+data = Core()
 
