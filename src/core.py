@@ -51,12 +51,9 @@ class Initialize:
             logger.info("Creating cik_lookup Table")
 
             cik_lookup = """ CREATE TABLE IF NOT EXISTS CIK_LOOKUP (
-                        ID INTEGER,
                         CIK VARCHAR(255) NOT NULL,
-                        TICKER VARCHAR(10) NOT NULL,
-                        TITLE VARCHAR(100) NOT NULL,
-                        VIEW_ BOOL NOT NULL,
-                        PRIMARY KEY (ID)
+                        TICKER VARCHAR(50) NOT NULL,
+                        COMPANY VARCHAR(100) NOT NULL
                         ); """
             self.conn.execute(cik_lookup)
 
@@ -104,13 +101,14 @@ class Retrieve:
             company_ticker_data = request.urlopen(request.Request(Retrieve.company_tickers_url,headers=Retrieve.headers)).read()
             hash_ = sha256(str(company_ticker_data).encode('utf-8')).hexdigest()
             logger.info("Generated Hash for New Data:  ",hash_)
-
             try:
                 company_ticker_data = json.loads(company_ticker_data)
+                company_ticker_data = [value for key,value in company_ticker_data.items()]
+  
                 # step 1: add hash with exact time and date 
-                # step 2: loop through all companies 
+                # step 2: bulk insert dictionary directly to db
                 #print([hash_,company_ticker_data])
-                self.addLatest(hash_,db)
+                self.addLatest(hash_,db,company_ticker_data)
             
             except Exception as e:
                 logger.error("Failed to Convert to Dictionary", e)
@@ -118,35 +116,39 @@ class Retrieve:
         except Exception as e: 
             logger.error("Connection Error: ",e)
         
-    def addTickers(self):
-        pass 
-
-    def addLatest(self,hash_,db):
+    def addLatest(self,hash_,db,ticker_data):
         last_hash = None
         try:
             last_hash = db.execute("SELECT CHECKSUM FROM UPDATE_HISTORY ORDER BY ROWID DESC LIMIT 1").fetchall()
 
             if(len(last_hash) == 0):
-                self.dumpData(hash_,db)
+                self.dumpData(hash_,db, ticker_data)
             else:
                 if(str(last_hash[0][0]) != str(hash_)):
-                    self.dumpData(hash_,db)
+                    self.dumpData(hash_,db,ticker_data)
                 else:
                     logger.info("Hashes are same skipping...")       
                 
         except Exception as e:
-            logger.error("Error occured retrieving data",e)
+            logger.error("Error occurred retrieving data",e)
 
 
-    def dumpData(self,hash_,db): 
+    def dumpData(self,hash_,db,ticker_data): 
         try:
             current_time = str(datetime.now())
             hash_ = str(hash_)
             args = [current_time,hash_]
             db.execute("INSERT INTO UPDATE_HISTORY(LAST_UPDATED,CHECKSUM) VALUES(?,?);",args)
             db.commit()
+            logger.info("Hash Inserted proceeding to add data")
+            try:
+                db.executemany("INSERT INTO CIK_LOOKUP(CIK,TICKER,COMPANY) VALUES(:cik_str, :ticker, :title);",ticker_data)
+                db.commit()
+                logger.info("Data Inserted Successfully")
+            except Exception as e:
+                logger.error("Error occurred: ",e)
         except Exception as e:
-            logger.error("Error occured: ",e)
+            logger.error("Error occurred: ",e)
 
 
     
